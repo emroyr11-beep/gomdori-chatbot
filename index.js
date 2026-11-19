@@ -86,20 +86,42 @@ app.post('/kakao/webhook', async (req, res) => {
       return res.json(buildKakaoResponse(msg, DEFAULT_QUICK_REPLIES));
     }
 
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-3.8-flash',
-      systemInstruction: SYSTEM_PROMPT,
-    });
+    // 트래픽(503) 발생 시 자동으로 다음 안정 모델로 즉시 우회 호출
+    const candidateModels = [
+      'gemini-3.8-flash',
+      'gemini-3.5-flash',
+      'gemini-2.5-flash-lite'
+    ];
 
-    const timeoutPromise = new Promise((_, reject) =>
-  setTimeout(() => reject(new Error('Kakao 5s timeout guard')), 4200)
-);
-const result = await Promise.race([
-  model.generateContent(userUtterance),
-  timeoutPromise
-]);
-    const aiReply = result.response.text();
+    let aiReply = null;
+    let lastError = null;
 
+    for (const modelName of candidateModels) {
+      try {
+        const model = genAI.getGenerativeModel({
+          model: modelName,
+          systemInstruction: SYSTEM_PROMPT,
+        });
+
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Timeout')), 3500)
+        );
+
+        const result = await Promise.race([
+          model.generateContent(userUtterance),
+          timeoutPromise
+        ]);
+
+        aiReply = result.response.text();
+        if (aiReply) break; // 성공 시 즉시 루프 종료
+      } catch (err) {
+        lastError = err;
+        console.warn(`[${modelName}] 실패, 다음 모델 시도:`, err.message);
+      }
+    }
+
+    if (!aiReply) throw lastError || new Error('All models failed');
+   
     return res.json(buildKakaoResponse(aiReply, DEFAULT_QUICK_REPLIES));
 
   } catch (error) {
