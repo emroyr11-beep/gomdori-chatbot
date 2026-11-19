@@ -91,7 +91,13 @@ app.post('/kakao/webhook', async (req, res) => {
       systemInstruction: SYSTEM_PROMPT,
     });
 
-    const result = await model.generateContent(userUtterance);
+    const timeoutPromise = new Promise((_, reject) =>
+  setTimeout(() => reject(new Error('Kakao 5s timeout guard')), 4200)
+);
+const result = await Promise.race([
+  model.generateContent(userUtterance),
+  timeoutPromise
+]);
     const aiReply = result.response.text();
 
     return res.json(buildKakaoResponse(aiReply, DEFAULT_QUICK_REPLIES));
