@@ -87,7 +87,7 @@ app.post('/kakao/webhook', async (req, res) => {
     }
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-3.8-flash-lite',
+      model: 'gemini-3.8-flash',
       systemInstruction: SYSTEM_PROMPT,
     });
 
